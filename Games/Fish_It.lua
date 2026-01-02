@@ -1,89 +1,70 @@
--- [[ EDINOE GLITCH - FISH IT PREMIUM GUI ]] --
+-- [[ EDINOE HUB - ULTIMATE FIX ]] --
 local player = game.Players.LocalPlayer
-local HttpService = game:GetService("HttpService")
+local RS = game:GetService("ReplicatedStorage")
 
--- Variables Toggle
-_G.AutoNotify = true
-_G.AutoReel = true
+-- Hapus GUI lama biar gak numpuk
+if game.CoreGui:FindFirstChild("EdinoeGui") then game.CoreGui.EdinoeGui:Destroy() end
 
--- 1. BIKIN GUI SIMPLE (KHUSUS HP)
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local Title = Instance.new("TextLabel")
-local NotifyBtn = Instance.new("TextButton")
-local ReelBtn = Instance.new("TextButton")
-
+-- 1. BIKIN UI YANG LEBIH JELAS
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "EdinoeGui"
-ScreenGui.Parent = game.CoreGui
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 160, 0, 100)
+Frame.Position = UDim2.new(0.5, -80, 0.1, 0) -- Tengah atas biar keliatan
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Frame.Active = true
+Frame.Draggable = true
 
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
-MainFrame.Size = UDim2.new(0, 150, 0, 180)
-MainFrame.Active = true
-MainFrame.Draggable = true -- Biar bisa digeser-geser di HP
+local Title = Instance.new("TextLabel", Frame)
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Text = "EDINOE FIX v2"
+Title.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Title.TextColor3 = Color3.new(1, 1, 1)
 
-Title.Parent = MainFrame
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "EDINOE HUB"
-Title.TextColor3 = Color3.fromRGB(255, 255, 0)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+local Status = Instance.new("TextLabel", Frame)
+Status.Size = UDim2.new(1, 0, 0, 75)
+Status.Position = UDim2.new(0, 0, 0.25, 0)
+Status.Text = "Menunggu Ikan..."
+Status.TextColor3 = Color3.new(1, 1, 1)
+Status.BackgroundTransparency = 1
 
--- Tombol Notif
-NotifyBtn.Parent = MainFrame
-NotifyBtn.Position = UDim2.new(0.1, 0, 0.25, 0)
-NotifyBtn.Size = UDim2.new(0.8, 0, 0, 35)
-NotifyBtn.Text = "Discord: ON"
-NotifyBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+-- 2. SISTEM PENGINTAI OTOMATIS (BRUTEFORCE EVENT)
+local function sendToDiscord(fish, weight)
+    Status.Text = "Dapet: " .. fish .. "\nKirim ke Discord..."
+    Status.TextColor3 = Color3.new(1, 1, 0)
+    
+    if _G.Notifier then
+        _G.Notifier.Send(fish, weight)
+        task.wait(1)
+        Status.Text = "✅ Berhasil Kirim!\nMancing lagi..."
+        Status.TextColor3 = Color3.new(0, 1, 0)
+    else
+        Status.Text = "❌ Notifier Gagal!\nCek Module!"
+        Status.TextColor3 = Color3.new(1, 0, 0)
+    end
+end
 
-NotifyBtn.MouseButton1Click:Connect(function()
-    _G.AutoNotify = not _G.AutoNotify
-    NotifyBtn.Text = _G.AutoNotify and "Discord: ON" or "Discord: OFF"
-    NotifyBtn.BackgroundColor3 = _G.AutoNotify and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-end)
-
--- Tombol Auto Reel
-ReelBtn.Parent = MainFrame
-ReelBtn.Position = UDim2.new(0.1, 0, 0.55, 0)
-ReelBtn.Size = UDim2.new(0.8, 0, 0, 35)
-ReelBtn.Text = "Auto Reel: ON"
-ReelBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-
-ReelBtn.MouseButton1Click:Connect(function()
-    _G.AutoReel = not _G.AutoReel
-    ReelBtn.Text = _G.AutoReel and "Auto Reel: ON" or "Auto Reel: OFF"
-    ReelBtn.BackgroundColor3 = _G.AutoReel and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-end)
-
--- 2. LOGIKA AUTO REEL & NOTIFIER
-task.spawn(function()
-    while task.wait(0.1) do
-        -- Cari Remote Event secara dinamis (contek skrip premium)
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("RemoteEvent") and v.Name == "CaughtFishVisual" then
-                v.OnClientEvent:Connect(function(user, pos, fishName, data)
-                    if tostring(user) == player.Name then
-                        local weight = (type(data) == "table" and data.Weight) or "N/A"
-                        
-                        -- Kirim Notif kalau ON
-                        if _G.AutoNotify and _G.Notifier then
-                            _G.Notifier.Send(fishName, weight)
-                        end
-                        
-                        -- Langsung Selesaiin Minigame kalau AutoReel ON
-                        if _G.AutoReel then
-                            local reelEvent = game:GetService("ReplicatedStorage"):FindFirstChild("ReelFinished", true)
-                            if reelEvent then reelEvent:FireServer(100, true) end
-                        end
-                    end
-                end)
-                break
-            end
+-- Cari semua RemoteEvent yang mungkin dipake game ini
+for _, v in pairs(game:GetDescendants()) do
+    if v:IsA("RemoteEvent") then
+        -- Game Fish It biasanya pake CaughtFishVisual atau FishCaught
+        if v.Name:find("Caught") or v.Name:find("Fish") then
+            v.OnClientEvent:Connect(function(...)
+                local args = {...}
+                local fishName = "Ikan Misterius"
+                local weight = "0"
+                
+                -- Deteksi data di dalam argumen (contek skrip dewa)
+                for i, arg in pairs(args) do
+                    if type(arg) == "string" and #arg > 2 then fishName = arg end
+                    if type(arg) == "table" and arg.Weight then weight = tostring(arg.Weight) end
+                end
+                
+                sendToDiscord(fishName, weight)
+            end)
         end
     end
-end)
+end
 
-print("🔥 Edinoe Premium Loaded!")
+print("🔥 Edinoe Fix v2 Loaded!")
 
