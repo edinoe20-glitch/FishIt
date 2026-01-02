@@ -1,70 +1,86 @@
--- [[ EDINOE HUB - STABLE VERSION ]] --
+-- [[ EDINOE HUB: CHLOE-X EDITION ]] --
 local player = game.Players.LocalPlayer
-local RS = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
 
--- Bersihkan GUI lama
-if game.CoreGui:FindFirstChild("EdinoeGui") then game.CoreGui.EdinoeGui:Destroy() end
+-- Stats Tracker (Referensi Chloe-X)
+_G.TotalCaught = _G.TotalCaught or 0
+_G.SessionStart = _G.SessionStart or os.time()
 
--- 1. BIKIN UI INDIKATOR
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "EdinoeGui"
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 160, 0, 100)
-Frame.Position = UDim2.new(0.5, -80, 0.1, 0)
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Frame.Active = true
-Frame.Draggable = true
-
-local Title = Instance.new("TextLabel", Frame)
-Title.Size = UDim2.new(1, 0, 0, 25)
-Title.Text = "EDINOE STABLE"
-Title.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-Title.TextColor3 = Color3.new(1, 1, 1)
-
-local Status = Instance.new("TextLabel", Frame)
-Status.Size = UDim2.new(1, 0, 0, 75)
-Status.Position = UDim2.new(0, 0, 0.25, 0)
-Status.Text = "Mencari Event..."
-Status.TextColor3 = Color3.new(1, 1, 1)
-Status.BackgroundTransparency = 1
-
--- 2. FUNGSI KIRIM NOTIF
-local function sendToDiscord(fish, weight)
-    if not fish or fish == "" or fish:find("Animation") then return end
+-- 1. FUNGSI KIRIM WEBHOOK (SANGAT STABIL)
+local function SendWebhook(fish, weight)
+    local WebhookURL = "https://discord.com/api/webhooks/1456380736641831086/lRLi_uAxOXZ5b2GjBrP370x0EIKA0VPmJNeWkteXGs6xlWPAOjsjFx1PoSMYnkKg4ikJ"
+    local ProxyURL = WebhookURL:gsub("discord.com", "webhook.lewisakura.moe")
     
-    Status.Text = "🎯 DAPET: " .. fish
-    Status.TextColor3 = Color3.new(0, 1, 0)
+    _G.TotalCaught = _G.TotalCaught + 1
+    local playTime = math.floor((os.time() - _G.SessionStart) / 60)
     
-    if _G.Notifier then
-        _G.Notifier.Send(fish, weight or "0")
-        task.wait(2)
-        Status.Text = "Menunggu Ikan..."
-        Status.TextColor3 = Color3.new(1, 1, 1)
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "🎣 Edinoe Hub Log: Ikan Baru!",
+            ["description"] = string.format(
+                "✅ **Ikan:** %s\n⚖️ **Berat:** %s Kg\n\n**--- Statistik Sesi ---**\n🔢 **Total Ikan:** %d\n⏰ **Lama Main:** %d Menit",
+                tostring(fish), tostring(weight), _G.TotalCaught, playTime
+            ),
+            ["color"] = 0x00ff00,
+            ["footer"] = {["text"] = "Logic: Edinoe x Chloe-X • " .. os.date("%X")}
+        }}
+    }
+    
+    local request = syn and syn.request or http_request or request or (http and http.request)
+    if request then
+        pcall(function()
+            request({
+                Url = ProxyURL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(data)
+            })
+        end)
     end
 end
 
--- 3. NYARI REMOTE EVENT (Sangat Spesifik)
--- Kita langsung tembak ke folder Events, jangan cari di folder Animations!
-local possibleEvents = {
-    RS:FindFirstChild("CaughtFishVisual", true),
-    RS:FindFirstChild("FishCaught", true)
-}
+-- 2. GUI PREMIUM (MOBILE FRIENDLY)
+if game.CoreGui:FindFirstChild("EdinoePremium") then game.CoreGui.EdinoePremium:Destroy() end
+local sg = Instance.new("ScreenGui", game.CoreGui); sg.Name = "EdinoePremium"
+local f = Instance.new("Frame", sg)
+f.Size = UDim2.new(0, 180, 0, 110)
+f.Position = UDim2.new(0.5, -90, 0.1, 0)
+f.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+f.Active = true; f.Draggable = true
 
-for _, ev in pairs(possibleEvents) do
-    if ev and ev:IsA("RemoteEvent") then -- VALIDASI: Harus RemoteEvent
+local t = Instance.new("TextLabel", f)
+t.Size = UDim2.new(1, 0, 0, 30); t.Text = "EDINOE X CHLOE-X"
+t.BackgroundColor3 = Color3.fromRGB(255, 170, 0); t.TextColor3 = Color3.new(0,0,0)
+
+local s = Instance.new("TextLabel", f)
+s.Size = UDim2.new(1, 0, 0, 80); s.Position = UDim2.new(0,0,0.3,0)
+s.Text = "Ready!\nTotal: 0 Ikan"; s.TextColor3 = Color3.new(1,1,1); s.BackgroundTransparency = 1
+
+-- 3. LOGIKA DETEKSI & AUTO-REEL (Metode Remote Hook)
+local RS = game:GetService("ReplicatedStorage")
+local events = {"CaughtFishVisual", "FishCaught", "ReelFinished"}
+
+for _, name in pairs(events) do
+    local ev = RS:FindFirstChild(name, true)
+    if ev and ev:IsA("RemoteEvent") then
         ev.OnClientEvent:Connect(function(...)
             local args = {...}
-            -- Pastikan argumen pertama adalah player kita
-            if tostring(args[1]) == player.Name then
-                local name = tostring(args[3] or "Ikan")
-                local weight = "0"
-                if type(args[4]) == "table" then 
-                    weight = tostring(args[4].Weight or "0") 
-                end
-                sendToDiscord(name, weight)
+            -- Deteksi jika pancingan selesai (Milik Player)
+            if tostring(args[1]) == player.Name or name == "ReelFinished" then
+                local fishName = tostring(args[3] or "Ikan")
+                local weight = (type(args[4]) == "table" and args[4].Weight) or "N/A"
+                
+                -- Update GUI
+                s.Text = "Dapet: " .. fishName .. "\nTotal: " .. _G.TotalCaught + 1
+                
+                -- Kirim ke Discord
+                task.spawn(function() SendWebhook(fishName, weight) end)
+                
+                -- Fitur Tambahan: Auto Reel (Tarik Otomatis)
+                local finish = RS:FindFirstChild("ReelFinished", true)
+                if finish then finish:FireServer(100, true) end
             end
         end)
-        Status.Text = "Ready! Siap Mancing"
     end
 end
 
